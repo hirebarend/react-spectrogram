@@ -3,6 +3,10 @@ import { useEffect, useRef, useState, type RefObject } from "react";
 async function start(
   canvasRef: RefObject<HTMLCanvasElement | null>,
   animationFrameIdRef: RefObject<number | null>,
+  mediaStreamRef: RefObject<MediaStream | null>,
+  audioContextRef: RefObject<AudioContext | null>,
+  mediaStreamAudioSourceNodeRef: RefObject<MediaStreamAudioSourceNode | null>,
+  analyserNodeRef: RefObject<AnalyserNode | null>,
   onCallback: (
     width: number,
     height: number,
@@ -18,10 +22,12 @@ async function start(
     },
   });
 
+  mediaStreamRef.current = mediaStream;
+
   const audioContext: AudioContext = new (window.AudioContext ||
     (window as any).webkitAudioContext)();
 
-  // audioContextRef.current = audioContext;
+  audioContextRef.current = audioContext;
 
   if (audioContext.state === "suspended") {
     await audioContext.resume();
@@ -30,11 +36,15 @@ async function start(
   const mediaStreamAudioSourceNode =
     audioContext.createMediaStreamSource(mediaStream);
 
+  mediaStreamAudioSourceNodeRef.current = mediaStreamAudioSourceNode;
+
   const analyserNode = audioContext.createAnalyser();
   analyserNode.fftSize = 1024;
   analyserNode.minDecibels = -90;
   analyserNode.maxDecibels = -10;
   analyserNode.smoothingTimeConstant = 0;
+
+  analyserNodeRef.current = analyserNode;
 
   mediaStreamAudioSourceNode.connect(analyserNode);
 
@@ -69,8 +79,11 @@ async function start(
 }
 
 async function stop(
-  canvasRef: RefObject<HTMLCanvasElement | null>,
-  animationFrameIdRef: RefObject<number | null>
+  animationFrameIdRef: RefObject<number | null>,
+  mediaStreamRef: RefObject<MediaStream | null>,
+  audioContextRef: RefObject<AudioContext | null>,
+  mediaStreamAudioSourceNodeRef: RefObject<MediaStreamAudioSourceNode | null>,
+  analyserNodeRef: RefObject<AnalyserNode | null>
 ) {
   if (animationFrameIdRef.current !== null) {
     cancelAnimationFrame(animationFrameIdRef.current);
@@ -78,33 +91,33 @@ async function stop(
     animationFrameIdRef.current = null;
   }
 
-  //   if (sourceRef.current) {
-  //     try {
-  //       sourceRef.current.disconnect();
-  //     } catch {
-  //       // ignore
-  //     }
-  //     sourceRef.current = null;
-  //   }
+  if (mediaStreamAudioSourceNodeRef.current) {
+    try {
+      mediaStreamAudioSourceNodeRef.current.disconnect();
+    } catch {
+      // ignore
+    }
+    mediaStreamAudioSourceNodeRef.current = null;
+  }
 
-  //   if (analyserRef.current) {
-  //     try {
-  //       analyserRef.current.disconnect();
-  //     } catch {
-  //       // ignore
-  //     }
-  //     analyserRef.current = null;
-  //   }
+  if (analyserNodeRef.current) {
+    try {
+      analyserNodeRef.current.disconnect();
+    } catch {
+      // ignore
+    }
+    analyserNodeRef.current = null;
+  }
 
-  //   if (audioContextRef.current) {
-  //     audioContextRef.current.close().catch(() => {});
-  //     audioContextRef.current = null;
-  //   }
+  if (audioContextRef.current) {
+    audioContextRef.current.close().catch(() => {});
+    audioContextRef.current = null;
+  }
 
-  //   if (streamRef.current) {
-  //     streamRef.current.getTracks().forEach((t) => t.stop());
-  //     streamRef.current = null;
-  //   }
+  if (mediaStreamRef.current) {
+    mediaStreamRef.current.getTracks().forEach((t) => t.stop());
+    mediaStreamRef.current = null;
+  }
 }
 
 export function useSpectrogram(options: {
@@ -116,12 +129,35 @@ export function useSpectrogram(options: {
   ) => boolean;
 }) {
   const animationFrameIdRef = useRef<number | null>(null);
+
+  const analyserNodeRef = useRef<AnalyserNode | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const mediaStreamAudioSourceNodeRef =
+    useRef<MediaStreamAudioSourceNode | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [isRunning, setIsRunning] = useState(false);
 
   useEffect(() => {
     if (isRunning) {
-      start(canvasRef, animationFrameIdRef, options.onCallback);
+      start(
+        canvasRef,
+        animationFrameIdRef,
+        mediaStreamRef,
+        audioContextRef,
+        mediaStreamAudioSourceNodeRef,
+        analyserNodeRef,
+        options.onCallback
+      );
+    } else {
+      stop(
+        animationFrameIdRef,
+        mediaStreamRef,
+        audioContextRef,
+        mediaStreamAudioSourceNodeRef,
+        analyserNodeRef
+      );
     }
   }, [isRunning]);
 
