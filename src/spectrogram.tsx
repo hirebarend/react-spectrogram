@@ -13,11 +13,14 @@ export const Spectrogram = () => {
 
       const sliceX = width - 1;
 
-      for (let i = 0; i < buffer.length; i++) {
-        const value = buffer[i];
+      const LOW_FRACTION = 0.35;
+      const visibleBins = Math.floor(buffer.length * LOW_FRACTION);
+
+      for (let j = 0; j < visibleBins; j++) {
+        const value = buffer[j];
         const magnitude = value / 255;
 
-        const y = Math.floor((1 - i / buffer.length) * height);
+        const y = Math.floor((1 - j / visibleBins) * height);
 
         const hue = 20 + 40 * magnitude;
         const saturation = 100;
